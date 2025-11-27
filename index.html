@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Voting Blockchain Privat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f4f9; padding: 50px; }
+        .container { background: white; max-width: 600px; margin: auto; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; margin: 10px; transition: 0.3s; }
+        .btn-connect { background-color: #e67e22; color: white; }
+        .btn-vote { background-color: #2ecc71; color: white; }
+        .btn-vote:hover { background-color: #27ae60; }
+        .candidate-box { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        #status { margin-top: 20px; color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🗳️ Pilkada Blockchain</h1>
+        
+        <button id="connectBtn" class="btn-connect" onclick="connectWallet()">Hubungkan MetaMask</button>
+        <p id="walletAddress">Belum terhubung</p>
+
+        <hr>
+
+        <div id="votingSection" style="display:none;">
+            <h3>Pilih Kandidat Anda:</h3>
+            
+            <div class="candidate-box">
+                <div>
+                    <strong>Kandidat A</strong>
+                    <br>Total Suara: <span id="scoreA">0</span>
+                </div>
+                <button class="btn-vote" onclick="vote(1)">Pilih A</button>
+            </div>
+
+            <div class="candidate-box">
+                <div>
+                    <strong>Kandidat B</strong>
+                    <br>Total Suara: <span id="scoreB">0</span>
+                </div>
+                <button class="btn-vote" onclick="vote(2)">Pilih B</button>
+            </div>
+        </div>
+
+        <p id="status"></p>
+    </div>
+
+    <script>
+        // --- KONFIGURASI ---
+        // GANTI ALAMAT INI DENGAN ALAMAT KONTRAK ANDA DARI REMIX!
+        const contractAddress = "0x05C0Ff3354FE1b043268365BEb94dAb40C939E73"; 
+
+        // ABI (Resep agar JS tahu fungsi smart contract)
+        // Ini adalah ABI standar dari kode Voting.sol yang saya berikan sebelumnya
+        const abi = [
+            {
+                "inputs": [{"internalType": "string","name": "_name","type": "string"}],
+                "name": "addCandidate", "outputs": [], "stateMutability": "nonpayable", "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "uint256","name": "_candidateId","type": "uint256"}],
+                "name": "vote", "outputs": [], "stateMutability": "nonpayable", "type": "function"
+            },
+            {
+                "inputs": [{"internalType": "uint256","name": "","type": "uint256"}],
+                "name": "candidates",
+                "outputs": [
+                    {"internalType": "uint256","name": "id","type": "uint256"},
+                    {"internalType": "string","name": "name","type": "string"},
+                    {"internalType": "uint256","name": "voteCount","type": "uint256"}
+                ],
+                "stateMutability": "view", "type": "function"
+            }
+        ];
+
+        let provider;
+        let signer;
+        let contract;
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                try {
+                    // Minta akses ke MetaMask
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    
+                    // Setup Ethers.js Provider
+                    provider = new ethers.providers.Web3Provider(window.ethereum);
+                    signer = provider.getSigner();
+                    
+                    // Ambil alamat user
+                    const address = await signer.getAddress();
+                    document.getElementById("walletAddress").innerText = "Dompet: " + address;
+                    document.getElementById("connectBtn").style.display = "none";
+                    document.getElementById("votingSection").style.display = "block";
+                    
+                    // Inisialisasi Kontrak
+                    contract = new ethers.Contract(contractAddress, abi, signer);
+
+                    // Update skor awal
+                    updateScores();
+
+                } catch (error) {
+                    console.error(error);
+                    document.getElementById("status").innerText = "Gagal konek: " + error.message;
+                }
+            } else {
+                alert("Install MetaMask dulu dong!");
+            }
+        }
+
+        async function vote(candidateId) {
+            try {
+                document.getElementById("status").innerText = "Sedang memproses vote di blockchain...";
+                
+                // Panggil fungsi vote di Smart Contract
+                const tx = await contract.vote(candidateId);
+                
+                document.getElementById("status").innerText = "Transaksi dikirim! Menunggu konfirmasi...";
+                
+                // Tunggu sampai transaksi selesai (mined)
+                await tx.wait();
+                
+                document.getElementById("status").innerText = "✅ Berhasil memilih! Terima kasih.";
+                updateScores(); // Refresh angka
+                
+            } catch (error) {
+                console.error(error);
+                // Menangkap error jika user sudah pernah vote
+                if(error.data && error.data.message) {
+                     document.getElementById("status").innerText = "Error: " + error.data.message;
+                } else {
+                    document.getElementById("status").innerText = "Gagal vote (Mungkin Anda sudah memilih?)";
+                }
+            }
+        }
+
+        async function updateScores() {
+            try {
+                // Panggil data kandidat 1
+                const candidateA = await contract.candidates(1);
+                document.getElementById("scoreA").innerText = candidateA.voteCount.toString();
+
+                // Panggil data kandidat 2
+                const candidateB = await contract.candidates(2);
+                document.getElementById("scoreB").innerText = candidateB.voteCount.toString();
+            } catch (err) {
+                console.error("Gagal ambil skor", err);
+            }
+        }
+    </script>
+</body>
+</html>
