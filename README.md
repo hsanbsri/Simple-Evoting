@@ -29,13 +29,13 @@ How to install
 }
 
 2. Inisialisasi database
-geth init --datadir node1 genesis.json
-geth init --datadir node2 genesis.json
+A. geth init --datadir node1 genesis.json
+B. geth init --datadir node2 genesis.json
 
-3. Jalankan bootnode
+4. Jalankan bootnode
 bootnode -nodekey bootnode/boot.key -addr :30301
 
-4. Jalankan Node di masing-masing terminal
+5. Jalankan Node di masing-masing terminal
 ## Node 1
 geth --datadir node1 \
 --networkid 2025 \
